@@ -1,0 +1,18 @@
+	def getAllWordCode(self,data_list):
+		word_code_list = []
+		for sentence in data_list:
+			# print(sentence)
+			sen_list = sentence.split(' ')
+			# print(sen_list)
+			# print(sen_list)
+			tmp_list_origin = []
+			tmp_list_dict = []
+			for word in sen_list:
+				# print(word)
+				tmp_list_origin.extend(self.__stringProcessing(word))
+			# print(tmp_list_origin)
+			for word in tmp_list_origin:
+				tmp_list_dict.append({word:self.__getWordCode(word)})
+			word_code_list.extend(tmp_list_dict)
+		self.__storeResultsInExcel(word_code_list)
+		return word_code_list
