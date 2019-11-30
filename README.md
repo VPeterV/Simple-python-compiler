@@ -1,6 +1,8 @@
 # Simple_python_complier
 A simple complier that supports parts of lexical and syntax of python
 
+Update the support for semantic translation (only supporting some simple assignment statement now). For the convenience of the coding, temporally remove the return of results
+
 Python词法分析、语法分析器
 
 词法分析程序：
