@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # @Time    : 2019/11/18 13:16
 # @Author  : PeterV
-# @FileName: Syntactic_Analyzer.py
+# @FileName: Analyzer.py
 # @Software: PyCharm
 
 from Lexical_Analyzer import Lexical_Analyzer,loadData
