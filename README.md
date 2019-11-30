@@ -3,7 +3,7 @@ A simple complier that supports parts of lexical and syntax of python
 
 Update the support for semantic translation (only supporting some simple assignment statement now). For the convenience of the coding, temporally remove the return of results
 
-Python词法分析、语法分析器
+Python词法分析、语法分析器，语义分析器
 
 词法分析程序：
 程序所需文件及环境：
@@ -19,12 +19,12 @@ Python词法分析、语法分析器
 	3、运行程序
 	4、结果会输出在控制台，同时也会以Excel的形式保存在result.xlsx中
 
-语法分析程序：
-语法分析程序集成了词法分析程序，运行语法分析程序，即可以得到词法分析的结果(result.xlsx)
+语法分析程序、语义分析器：
+语法分析程序集成了词法分析程序，简单语义分析器，运行语法/语义分析程序，即可以得到词法分析的结果(result.xlsx)
 
 程序所需文件：
 		1、更改data_expr.txt中的内容，改变输入内容（当前仅支持赋值语句）
-	  2、种别码如词法分析程序所示
+	  	2、种别码如上词法分析程序所示
 
 环境：
 
@@ -35,4 +35,7 @@ Python词法分析、语法分析器
 	1、根据需要更改data_expr中的语法
 	2、运行Syntactic.py文件
 	3、结果会输出在控制台
-	4、同时也会以Excel的形式保存在error_recorder.xlsx中
+	4、同时也会以Excel的形式保存在SyntaxAndSemanticResults.xlsx中的error_recorder sheet中
+	5、语义分析的结果会同时显示在控制台，并且会写在SyntaxAndSemanticResults.xlsx的results sheet 中
+	
+	
