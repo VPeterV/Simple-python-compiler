@@ -70,18 +70,31 @@ class Syntactic_Analyzer:
 		return self.__analyze()
 
 	def __analyze(self):
+		'''
+		The begin of a parse of an expression of assignment statement
+		Parse whether the first input token is a legal variable or not
+		And we expect the second (next token) is '='
+		Then we continue for the expression parse
+		'''
 		if self.__accept(self.word2code['(_|[a-z]|[A-Z]|$)\w*']):
+			#for judging whether the first token is legal variable
 			self.variable = self.next_tok.word
 			self.__advance()
 		else:
 			self.__advance()
 			self.error_recorder.append("Syntax error in " + str(self.index) + " line:\n" +
 									   "Expect Variable but received: " + self.next_tok.word)
+		#hope the next token is ''='
 		self.__expect(self.word2code['='])
 
 		return self.__statement()
 
 	def __statement(self):
+		'''
+		In fact, it is not necessary for the program now
+
+		'''
+		#statement parse
 		# if self.next_tok.code in self.supported_syntax_code:
 		# 	self.__advance()
 		# else:
@@ -91,6 +104,22 @@ class Syntactic_Analyzer:
 		exprval,self.expr_variable = self.__expr()
 
 	def __expr(self):
+		'''
+		expression parse
+
+		Structure:
+			left = Term()
+			while +/-:
+			advance() (scanner)
+			right =Term()
+			semantic_string = 't' + (index) + '=' left + '+/-' + right
+			results.append(semantic_string)
+			left = t + (index)
+			repeat
+
+		return: left
+
+		'''
 		exprval = self.__term()
 		semantic_string = str(exprval)
 		# print('expr '+ self.next_tok.word)
@@ -103,54 +132,53 @@ class Syntactic_Analyzer:
 			right = self.__term()
 			if opt==self.word2code['+']:
 				if is_semantic_parse:
-					# if term_address_left is None and term_address_right is None:
-					# 	semantic_string = 't'+str(self.temporal_index)+' = ' + str(exprval) + ' + ' + str(right)
-					# elif term_address_left is None:
-					# 	semantic_string = 't'+str(self.temporal_index)+' = ' + str(exprval) + ' + ' + str(term_address_right)
-					# elif term_address_right is None:
-					# 	semantic_string = 't'+str(self.temporal_index)+' = ' + str(term_address_left) + ' + ' + str(right)
-					# else:
 					if  self.expr_variable is None:
 						semantic_string = 't'+str(self.temporal_index)+' = ' + str(exprval) + ' + ' + str(
 						right)
-					elif self.expr_variable is not None:
-						# print(self.temporal_index)
-						# print(self.semantic_results)
+					else:
 						semantic_string = 't' + str(self.temporal_index) + ' = ' + \
 										  str(exprval) + ' + ' + \
 								str(right)
 						self.expr_variable = None
 					self.temporal_index += 1
 					exprval = semantic_string.split('=')[0].strip()
-					# self.semantic_results.append(semantic_string)
-				# print(right)
-				# if type(right) is int and type(exprval) is int:
-				# 	print(right)
-				# 	print(exprval)
-					# exprval += right
 			elif opt==self.word2code['-']:
 				if is_semantic_parse:
-					if self.temporal_index == 0:
+					if self.expr_variable is None:
 						semantic_string = 't' + str(self.temporal_index) + ' = ' + str(exprval) + ' - ' + str(
 							right)
 					else:
-						semantic_string = 't' + str(self.temporal_index) + ' = ' + str(exprval) + ' - ' + str(
-							right)
+						semantic_string = 't' + str(self.temporal_index) + ' = ' + \
+										  str(exprval) + ' - ' + \
+										  str(right)
+						self.expr_variable = None
 					self.temporal_index += 1
 					exprval = semantic_string.split('=')[0].strip()
-				# exprval -=right
+					# exprval -=right
 			self.expr_variable = semantic_string.split('=')[0].strip()
 			self.semantic_results.append(semantic_string)
-		# self.__advance()
 		return exprval,semantic_string.split('=')[0].strip()
 
 	def __term(self):
+		'''
+		term parse
+
+		Structure:
+			left = factor()
+			while */'/':
+			advance() (scanner)
+			right =factor()
+			semantic_string = 't' + (index) + '=' left + '*/'/' ' + right
+			results.append(semantic_string)
+			left = t + (index)
+			repeat
+		return left
+
+		:return: left
+		'''
 		termval = self.__factor()
 		semantic_string = str(termval)
 		while self.__accept(self.word2code['*']) or self.__accept(self.word2code['/']):
-			# print('*')
-			# if not self.__advance():
-			# 	break
 			self.__advance()
 			opt = self.cur_tok.code
 			right = self.__factor()
@@ -177,10 +205,6 @@ class Syntactic_Analyzer:
 					self.semantic_results.append(semantic_string)
 					termval = semantic_string.split('=')[0].strip()
 
-		# self.__advance()
-		# print('return')
-		# print(termval)
-		# return termval,semantic_string.split('=')[0].strip()
 		return termval
 
 
