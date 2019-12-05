@@ -24,7 +24,8 @@ class Syntactic_Analyzer:
 	def __init__(self,result_path,lexical_analyzer,is_semantic_parse):
 		self.is_semantic_parse = is_semantic_parse
 		self.lexical_analyzer = lexical_analyzer
-		self.supported_syntax  = ['.','+','-','*','/','=','([1-9]\d*)|[0-9]','(_|[a-z]|[A-Z]|$)\w*','(',')']
+		self.supported_syntax  = ['.','+','-','*','/','=','([1-9]\d*)|[0-9]','(_|[a-z]|[A-Z]|$)\w*',
+								  '(',')','if','while','==','<','<=','>','>=',':','or','and']
 		self.supported_syntax_code = []
 		self.result_path = result_path
 		for item in self.supported_syntax:
@@ -35,8 +36,12 @@ class Syntactic_Analyzer:
 		self.all_semantic_results = []
 		self.results = []
 
-	def fit(self,text):
+	def fit(self,text,space_num_list):
 		tokens = []
+		self.space_num_list = space_num_list
+		self.all_backfill_stack = [] #recording the line number of control stream statement
+		self.addr_index = 1 #address code's index
+		self.space_stack = []	#record every block's space number
 		for sentence in text:
 			tmp_list = []
 			for item in sentence:
@@ -45,21 +50,33 @@ class Syntactic_Analyzer:
 		self.index = 0
 		for index,sentence in enumerate(tokens):
 			self.semantic_results = []
+			self.cur_space = self.space_num_list[index]
 			self.temporal_index = 1
-			self.index = index + 1
+			self.index += 1
 			self.expr_variable = None
 			self.variable = None
-			self.results.append(self.__parse(sentence))
+			self.is_control_stream = False
+			# self.results.append(self.__parse(sentence))
+			self.__backfill()
+			self.__parse(sentence)
 			while self.progress < self.sen_len:
 				self.error_recorder.append("Syntax error in " + str(self.index) + " line:\n" +
 										   "Unexpected token : " + self.next_tok.word)
 				self.__advance()
 			if self.variable is not None:
-				self.semantic_results.append(str(self.variable) + ' = '+self.semantic_results[-1].split('=')[0].strip())
+				self.addr_index += 1
+				self.semantic_results.append(str(self.variable) + ' = '+ str(self.expr_variable))
 			self.all_semantic_results.append(self.semantic_results)
+		self.__backfill_EOP()
 		self.__storeErrorInExcel()
 
 	def __parse(self,sentence):
+		'''
+		  The begin of a parse of an expression of assignment statement
+		Parse whether the first input token is a legal variable or not
+		And we expect the second (next token) is '='
+		Then we continue for the expression parse
+		'''
 		self.sen_len = len(sentence)
 		self.tokens = generate_tokens(sentence)
 		self.cur_tok = None
@@ -67,41 +84,139 @@ class Syntactic_Analyzer:
 		self.__advance()
 		# print(self.next_tok.word)
 
-		return self.__analyze()
+		# TODO Construction
+		#Go to the control stream module
+		if self.__accept(self.word2code['if']) or self.__accept(self.word2code['while']):
+			self.is_control_stream = True
+			return self.__statement()
 
-	def __analyze(self):
-		'''
-		The begin of a parse of an expression of assignment statement
-		Parse whether the first input token is a legal variable or not
-		And we expect the second (next token) is '='
-		Then we continue for the expression parse
-		'''
+		#Go to the expression module
 		if self.__accept(self.word2code['(_|[a-z]|[A-Z]|$)\w*']):
-			#for judging whether the first token is legal variable
+			# for judging whether the first token is legal variable
 			self.variable = self.next_tok.word
 			self.__advance()
 		else:
 			self.__advance()
 			self.error_recorder.append("Syntax error in " + str(self.index) + " line:\n" +
-									   "Expect Variable but received: " + self.next_tok.word)
-		#hope the next token is ''='
+									   "Expect Variable or Branch statement but received: " + self.next_tok.word)
+		# hope the next token is ''='
 		self.__expect(self.word2code['='])
 
 		return self.__statement()
 
 	def __statement(self):
 		'''
-		In fact, it is not necessary for the program now
-
 		'''
-		#statement parse
-		# if self.next_tok.code in self.supported_syntax_code:
-		# 	self.__advance()
-		# else:
-		# 	self.error_recorder.append("Syntax error in " + str(self.index) + " line:\n" +
-		# 							   "Unsupported token type: " + self.next_tok.word)
-		# 	self.__advance()
-		exprval,self.expr_variable = self.__expr()
+		if self.__accept(self.word2code['if']) or self.__accept(self.word2code['while']):
+			self.__control()
+		else:
+			self.__backfill()
+			exprval,self.expr_variable = self.__expr()
+
+	def __control(self):
+		'''
+		The begin of a parse for a control stream statement
+		'''
+		if self.__accept(self.word2code['if']):
+			self.__advance()
+			condition = self.__cond()
+			self.__expect(self.word2code[':'])
+
+			semantic_string = 'if ' + condition + ' goto ' + str(self.addr_index + 2) + ':'
+			self.semantic_results.append(semantic_string)
+			self.addr_index += 1
+			semantic_string = 'else goto '
+			self.addr_index += 1
+			self.semantic_results.append(semantic_string)
+			# self.cur_space = self.space_num_list[self.index]
+
+			backfill_list = [self.index]	# all_semantic_results[backfill_list[0]][1] + str(self.addr_index)
+			self.all_backfill_stack.extend(backfill_list)
+			self.__control_block()
+		# return
+		elif self.__accept(self.word2code['while']):
+			self.__advance()
+			condition = self.__cond()
+			self.__expect(self.word2code[':'])
+			#TODO
+			# return
+
+	def __control_block(self):
+		'''
+		A module for control_block
+		Adjust the space_stack to help program judge whether the block has been OK
+		'''
+		if len(self.space_stack) >0:
+			if self.cur_space > self.space_stack[-1]:
+				self.space_stack.append(self.cur_space)
+				return
+		else:
+			self.space_stack.append(self.cur_space)
+			return
+
+		# self.__backfill()
+
+	def __backfill(self):
+		'''
+		A module for backfilling
+		Use back_fill_stack and space_stack to backfill
+		back_fill_stack is synchronous with space_stack
+		'''
+		while len(self.space_stack) > 0 and self.cur_space <= self.space_stack[-1]:
+			print('all semantic results')
+			print(self.all_semantic_results)
+			print('backfill stack')
+			print(self.all_backfill_stack)
+			print('space stack')
+			print(self.space_stack)
+			self.all_semantic_results[self.all_backfill_stack[-1]-1][1] += str(self.addr_index)
+			self.space_stack.pop(-1)
+			self.all_backfill_stack.pop(-1)
+
+	def __backfill_EOP(self):
+		'''
+		backfill those unfilled goto statements when the program has been over
+		'''
+		assert len(self.all_backfill_stack) == len(self.space_stack)
+
+		while len(self.space_stack)>0:
+			print('all semantic results')
+			print(self.all_semantic_results)
+			print('backfill stack')
+			print(self.all_backfill_stack)
+			print('space stack')
+			print(self.space_stack)
+			self.all_semantic_results[self.all_backfill_stack[-1] - 1][1] += 'EOP'
+			self.space_stack.pop(-1)
+			self.all_backfill_stack.pop(-1)
+
+
+	def __cond(self):
+		'''
+		Parsing the condition  (including 'and' , 'or')
+		'''
+		left = self.__cond_term()
+		cond_string = str(left)
+		while self.__accept(self.word2code['and']) or self.__accept(self.word2code['or']):
+			self.__advance()
+			opt = self.cur_tok.word
+			right = self.__cond_term()
+			cond_string = str(left) + ' ' + opt +' ' + str(right)
+
+		return cond_string
+
+	def __cond_term(self):
+		cond_var = self.__factor()
+		cond_term = str(cond_var)
+		if self.__accept(self.word2code['<']) or self.__accept(self.word2code['<='])\
+			or self.__accept(self.word2code['==']) or self.__accept(self.word2code['>'])\
+			or self.__accept(self.word2code['>=']):
+			self.__advance()
+			opt = self.cur_tok.word
+			right = self.__factor()
+			cond_term = str(cond_var) + ' ' + opt + ' ' + str(right)
+
+		return cond_term
 
 	def __expr(self):
 		'''
@@ -141,6 +256,7 @@ class Syntactic_Analyzer:
 								str(right)
 						self.expr_variable = None
 					self.temporal_index += 1
+					self.addr_index += 1
 					exprval = semantic_string.split('=')[0].strip()
 			elif opt==self.word2code['-']:
 				if is_semantic_parse:
@@ -153,6 +269,7 @@ class Syntactic_Analyzer:
 										  str(right)
 						self.expr_variable = None
 					self.temporal_index += 1
+					self.addr_index += 1
 					exprval = semantic_string.split('=')[0].strip()
 					# exprval -=right
 			self.expr_variable = semantic_string.split('=')[0].strip()
@@ -191,6 +308,7 @@ class Syntactic_Analyzer:
 						semantic_string = 't'+str(self.temporal_index)+' = ' + str(termval) + ' * ' + str(right)
 						self.expr_variable = None
 					self.temporal_index += 1
+					self.addr_index += 1
 					self.semantic_results.append(semantic_string)
 					termval = semantic_string.split('=')[0].strip()
 				# print(termval)
@@ -202,6 +320,7 @@ class Syntactic_Analyzer:
 						semantic_string = 't' + str(self.temporal_index) + ' = ' +str(termval) + ' / ' +str(right)
 						self.expr_variable = None
 					self.temporal_index += 1
+					self.addr_index += 1
 					self.semantic_results.append(semantic_string)
 					termval = semantic_string.split('=')[0].strip()
 
@@ -209,8 +328,6 @@ class Syntactic_Analyzer:
 
 
 	def __factor(self):
-		# print(self.next_tok.word)
-		# print(self.word2code['('])
 		if self.__accept(self.word2code['(_|[a-z]|[A-Z]|$)\w*']):
 			self.__advance()
 			return self.cur_tok.word
@@ -230,7 +347,10 @@ class Syntactic_Analyzer:
 									" Expect \"Variable\" \"Number\" or \"(\" but received: " + self.next_tok.word)
 			if not self.__advance():
 				return False
-			return self.__statement()
+			if not self.is_control_stream:
+				return self.__statement()
+			else:
+				return self.__cond()
 
 	def __advance(self):
 		'''
@@ -289,9 +409,13 @@ if __name__ == '__main__':
 	is_semantic_parse = True
 	lexical_analyzer = Lexical_Analyzer('wordCode.xlsx','result.xlsx')
 	data_list = loadData('data_expr.txt')
+	print(data_list)
+	space_number_list = lexical_analyzer.getSpaceNumber(data_list)
+	print('space number list')
+	print(space_number_list)
 	data_list = lexical_analyzer.convertSentecesToWordCode(data_list)
 	syntax_analyzer = Syntactic_Analyzer('SyntaxAndSemanticResults.xlsx',lexical_analyzer,is_semantic_parse)
-	syntax_analyzer.fit(data_list)
+	syntax_analyzer.fit(data_list,space_number_list)
 	for error in syntax_analyzer.error_recorder:
 		logging.error(error)
 	# logging.info('results: ' + str(syntax_analyzer.results))

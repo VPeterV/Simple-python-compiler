@@ -24,6 +24,21 @@ class Lexical_Analyzer:
 			self.word2id[item_word] = item_code
 			self.id2word[item_code] = item_word
 
+	def getSpaceNumber(self,data_list):
+		spacenumber_list = []
+		for item in data_list:
+			amount = 0
+			for i in range(len(item)):
+				if item[i]==' ':
+					amount+=1
+				elif item[i]=='\t':
+					amount+=4
+				else:
+					print(item[i])
+					break
+			spacenumber_list.append(amount)
+		return spacenumber_list
+
 	def getAllWordCode(self,data_list):
 		word_code_list = []
 		for sentence in data_list:
@@ -287,7 +302,7 @@ def loadData(data_path):
 	data_list = []
 	with open(data_path,'r',encoding='utf-8') as file:
 		for item in file:
-			data_list.append(item.strip())
+			data_list.append(item.strip('\n'))
 	return data_list
 
 
