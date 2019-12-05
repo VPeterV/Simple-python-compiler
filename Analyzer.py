@@ -25,7 +25,8 @@ class Syntactic_Analyzer:
 		self.is_semantic_parse = is_semantic_parse
 		self.lexical_analyzer = lexical_analyzer
 		self.supported_syntax  = ['.','+','-','*','/','=','([1-9]\d*)|[0-9]','(_|[a-z]|[A-Z]|$)\w*',
-								  '(',')','if','while','==','<','<=','>','>=',':','or','and']
+								  '(',')','if','while','==','<','<=','>','>=',':','or','and','EOP',
+								  'True','False']
 		self.supported_syntax_code = []
 		self.result_path = result_path
 		for item in self.supported_syntax:
@@ -39,14 +40,18 @@ class Syntactic_Analyzer:
 	def fit(self,text,space_num_list):
 		tokens = []
 		self.space_num_list = space_num_list
+		self.space_num_list.append(0)
 		self.all_backfill_stack = [] #recording the line number of control stream statement
 		self.addr_index = 1 #address code's index
 		self.space_stack = []	#record every block's space number
+		self.while_stack = []
+		self.is_control_last = False	#Whether the last statement is control stream
 		for sentence in text:
 			tmp_list = []
 			for item in sentence:
 				tmp_list.append(Token(list(item.keys())[0],list(item.values())[0]))
 			tokens.append(tmp_list)
+		tokens.append([Token('EOP',self.word2code['EOP'])])
 		self.index = 0
 		for index,sentence in enumerate(tokens):
 			self.semantic_results = []
@@ -58,9 +63,12 @@ class Syntactic_Analyzer:
 			self.is_control_stream = False
 			# self.results.append(self.__parse(sentence))
 			self.__backfill()
-			self.__parse(sentence)
+			if not sentence[0].word == 'EOP':
+				self.__parse(sentence)
+			else:
+				self.__advance()
 			while self.progress < self.sen_len:
-				self.error_recorder.append("Syntax error in " + str(self.index) + " line:\n" +
+				self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n' +
 										   "Unexpected token : " + self.next_tok.word)
 				self.__advance()
 			if self.variable is not None:
@@ -97,7 +105,7 @@ class Syntactic_Analyzer:
 			self.__advance()
 		else:
 			self.__advance()
-			self.error_recorder.append("Syntax error in " + str(self.index) + " line:\n" +
+			self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n' +
 									   "Expect Variable or Branch statement but received: " + self.next_tok.word)
 		# hope the next token is ''='
 		self.__expect(self.word2code['='])
@@ -108,38 +116,39 @@ class Syntactic_Analyzer:
 		'''
 		'''
 		if self.__accept(self.word2code['if']) or self.__accept(self.word2code['while']):
+			self.is_control_last = True
 			self.__control()
 		else:
 			self.__backfill()
+			self.is_control_last = False
 			exprval,self.expr_variable = self.__expr()
 
 	def __control(self):
 		'''
 		The begin of a parse for a control stream statement
 		'''
-		if self.__accept(self.word2code['if']):
-			self.__advance()
-			condition = self.__cond()
-			self.__expect(self.word2code[':'])
+		# if self.__accept(self.word2code['if']):
+		is_while = False
+		if self.__accept(self.word2code['while']):
+			is_while = True
+		self.__advance()
+		condition = self.__cond()
+		self.__expect(self.word2code[':'])
 
-			semantic_string = 'if ' + condition + ' goto ' + str(self.addr_index + 2) + ':'
-			self.semantic_results.append(semantic_string)
-			self.addr_index += 1
-			semantic_string = 'else goto '
-			self.addr_index += 1
-			self.semantic_results.append(semantic_string)
-			# self.cur_space = self.space_num_list[self.index]
+		semantic_string = 'if ' + condition + ' goto ' + str(self.addr_index + 2) + ':'
+		self.semantic_results.append(semantic_string)
+		self.addr_index += 1
+		semantic_string = 'else goto '
+		self.addr_index += 1
+		self.semantic_results.append(semantic_string)
+		# self.cur_space = self.space_num_list[self.index]
+		backfill_list = [self.index]	# all_semantic_results[backfill_list[0]][1] + str(self.addr_index)
+		self.all_backfill_stack.extend(backfill_list)
+		if is_while:
+			self.while_stack.append({'addr_index':self.addr_index-2,'index':self.index})
+		self.__control_block()
 
-			backfill_list = [self.index]	# all_semantic_results[backfill_list[0]][1] + str(self.addr_index)
-			self.all_backfill_stack.extend(backfill_list)
-			self.__control_block()
-		# return
-		elif self.__accept(self.word2code['while']):
-			self.__advance()
-			condition = self.__cond()
-			self.__expect(self.word2code[':'])
-			#TODO
-			# return
+
 
 	def __control_block(self):
 		'''
@@ -163,13 +172,21 @@ class Syntactic_Analyzer:
 		back_fill_stack is synchronous with space_stack
 		'''
 		while len(self.space_stack) > 0 and self.cur_space <= self.space_stack[-1]:
-			print('all semantic results')
-			print(self.all_semantic_results)
-			print('backfill stack')
-			print(self.all_backfill_stack)
-			print('space stack')
-			print(self.space_stack)
-			self.all_semantic_results[self.all_backfill_stack[-1]-1][1] += str(self.addr_index)
+			# print('all semantic results')
+			# print(self.all_semantic_results)
+			# print('backfill stack')
+			# print(self.all_backfill_stack)
+			# print('space stack')
+			# print(self.space_stack)
+			if self.is_control_last:
+				self.error_recorder.append('Syntax error in '+ 'code line ' + str(self.index) + ':\n'+'Indent expected')
+				self.is_control_last = False
+			if len(self.while_stack)>0:
+				if self.while_stack[-1]['index'] == self.all_backfill_stack[-1]:
+					self.semantic_results.append('goto ' + str(self.while_stack[-1]['addr_index']))
+					self.addr_index += 1
+					self.while_stack.pop(-1)
+			self.all_semantic_results[self.all_backfill_stack[-1]-1][-1] += str(self.addr_index)
 			self.space_stack.pop(-1)
 			self.all_backfill_stack.pop(-1)
 
@@ -180,15 +197,16 @@ class Syntactic_Analyzer:
 		assert len(self.all_backfill_stack) == len(self.space_stack)
 
 		while len(self.space_stack)>0:
-			print('all semantic results')
-			print(self.all_semantic_results)
-			print('backfill stack')
-			print(self.all_backfill_stack)
-			print('space stack')
-			print(self.space_stack)
-			self.all_semantic_results[self.all_backfill_stack[-1] - 1][1] += 'EOP'
+			# print('all semantic results')
+			# print(self.all_semantic_results)
+			# print('backfill stack')
+			# print(self.all_backfill_stack)
+			# print('space stack')
+			# print(self.space_stack)
+			self.all_semantic_results[self.all_backfill_stack[-1] - 1][-1] += str(self.addr_index)
 			self.space_stack.pop(-1)
 			self.all_backfill_stack.pop(-1)
+		self.all_semantic_results.append(['EOP'])
 
 
 	def __cond(self):
@@ -328,7 +346,8 @@ class Syntactic_Analyzer:
 
 
 	def __factor(self):
-		if self.__accept(self.word2code['(_|[a-z]|[A-Z]|$)\w*']):
+		if self.__accept(self.word2code['(_|[a-z]|[A-Z]|$)\w*']) \
+				or self.__accept(self.word2code['True']) or self.__accept(self.word2code['False']):
 			self.__advance()
 			return self.cur_tok.word
 		elif self.__accept(self.word2code['([1-9]\d*)|[0-9]']):
@@ -343,8 +362,8 @@ class Syntactic_Analyzer:
 			return self.expr_variable
 		else:
 			# print('error in __factor')
-			self.error_recorder.append("Syntax error in " + str(self.index) + " line: \n "+
-									" Expect \"Variable\" \"Number\" or \"(\" but received: " + self.next_tok.word)
+			self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n'+
+									"Expect \"Variable\" \"Number\" or \"(\" but received: " + self.next_tok.word)
 			if not self.__advance():
 				return False
 			if not self.is_control_stream:
@@ -377,8 +396,8 @@ class Syntactic_Analyzer:
 	def __expect(self,acc_type):
 		if not self.__accept(acc_type):
 			# print('error in __expect')
-			self.error_recorder.append("Syntax error in " + str(self.index) + " line:\n"
-									   +"Expected {} but received {}".format(str(self.code2word[acc_type]),self.next_tok.word))
+			self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n'+
+									   "Expected {} but received {}".format(str(self.code2word[acc_type]),self.next_tok.word))
 			self.__advance()
 		else:
 			self.__advance()
@@ -414,10 +433,16 @@ if __name__ == '__main__':
 	print('space number list')
 	print(space_number_list)
 	data_list = lexical_analyzer.convertSentecesToWordCode(data_list)
+	print(data_list)
 	syntax_analyzer = Syntactic_Analyzer('SyntaxAndSemanticResults.xlsx',lexical_analyzer,is_semantic_parse)
 	syntax_analyzer.fit(data_list,space_number_list)
 	for error in syntax_analyzer.error_recorder:
 		logging.error(error)
 	# logging.info('results: ' + str(syntax_analyzer.results))
+	index = 1
 	for item in syntax_analyzer.all_semantic_results:
-		logging.info(str(item))
+		logging.info('     '+str(item))
+	for sentence in syntax_analyzer.all_semantic_results:
+		for item in sentence:
+			logging.info('  line ' + str(index)+ ': ' + str(item))
+			index += 1

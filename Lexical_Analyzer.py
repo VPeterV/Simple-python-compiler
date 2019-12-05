@@ -34,7 +34,7 @@ class Lexical_Analyzer:
 				elif item[i]=='\t':
 					amount+=4
 				else:
-					print(item[i])
+					# print(item[i])
 					break
 			spacenumber_list.append(amount)
 		return spacenumber_list
@@ -63,7 +63,7 @@ class Lexical_Analyzer:
 		for sentence in data_list:
 			word_code_list = []
 			# print(sentence)
-			sen_list = sentence.split(' ')
+			sen_list = sentence.replace('\t','    ').split(' ')
 			# print(sen_list)
 			# print(sen_list)
 			tmp_list_origin = []
