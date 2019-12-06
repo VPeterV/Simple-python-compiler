@@ -61,6 +61,10 @@ class Syntactic_Analyzer:
 			self.expr_variable = None
 			self.variable = None
 			self.is_control_stream = False
+			if index==0:
+				self.last_space_num = 0
+			else:
+				self.last_space_num = self.space_num_list[index-1]	# a variable for Unexpected indent detection
 			# self.results.append(self.__parse(sentence))
 			self.__backfill()
 			if not sentence[0].word == 'EOP':
@@ -80,19 +84,19 @@ class Syntactic_Analyzer:
 
 	def __parse(self,sentence):
 		'''
+
 		  The begin of a parse of an expression of assignment statement
 		Parse whether the first input token is a legal variable or not
 		And we expect the second (next token) is '='
 		Then we continue for the expression parse
+
 		'''
 		self.sen_len = len(sentence)
 		self.tokens = generate_tokens(sentence)
 		self.cur_tok = None
 		self.next_tok = None
 		self.__advance()
-		# print(self.next_tok.word)
 
-		# TODO Construction
 		#Go to the control stream module
 		if self.__accept(self.word2code['if']) or self.__accept(self.word2code['while']):
 			self.is_control_stream = True
@@ -115,6 +119,10 @@ class Syntactic_Analyzer:
 	def __statement(self):
 		'''
 		'''
+		#Check those statements which have unexpected indent
+		if not self.is_control_stream and not self.is_control_last and self.cur_space>self.last_space_num:
+			self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n' +
+									   "Unexpected indent ")
 		if self.__accept(self.word2code['if']) or self.__accept(self.word2code['while']):
 			self.is_control_last = True
 			self.__control()
@@ -127,7 +135,6 @@ class Syntactic_Analyzer:
 		'''
 		The begin of a parse for a control stream statement
 		'''
-		# if self.__accept(self.word2code['if']):
 		is_while = False
 		if self.__accept(self.word2code['while']):
 			is_while = True
@@ -172,12 +179,6 @@ class Syntactic_Analyzer:
 		back_fill_stack is synchronous with space_stack
 		'''
 		while len(self.space_stack) > 0 and self.cur_space <= self.space_stack[-1]:
-			# print('all semantic results')
-			# print(self.all_semantic_results)
-			# print('backfill stack')
-			# print(self.all_backfill_stack)
-			# print('space stack')
-			# print(self.space_stack)
 			if self.is_control_last:
 				self.error_recorder.append('Syntax error in '+ 'code line ' + str(self.index) + ':\n'+'Indent expected')
 				self.is_control_last = False
@@ -197,12 +198,6 @@ class Syntactic_Analyzer:
 		assert len(self.all_backfill_stack) == len(self.space_stack)
 
 		while len(self.space_stack)>0:
-			# print('all semantic results')
-			# print(self.all_semantic_results)
-			# print('backfill stack')
-			# print(self.all_backfill_stack)
-			# print('space stack')
-			# print(self.space_stack)
 			self.all_semantic_results[self.all_backfill_stack[-1] - 1][-1] += str(self.addr_index)
 			self.space_stack.pop(-1)
 			self.all_backfill_stack.pop(-1)
@@ -224,6 +219,9 @@ class Syntactic_Analyzer:
 		return cond_string
 
 	def __cond_term(self):
+		'''
+		Parsing the condition  (including '<' , '<=','==','>','>=')
+		'''
 		cond_var = self.__factor()
 		cond_term = str(cond_var)
 		if self.__accept(self.word2code['<']) or self.__accept(self.word2code['<='])\
@@ -355,13 +353,10 @@ class Syntactic_Analyzer:
 			return int(self.cur_tok.word)
 		elif self.__accept(self.word2code['(']):
 			self.__advance()
-			# print('(((((')
-			# print(self.cur_tok)
 			exprval,self.expr_variable = self.__expr()
 			self.__expect(self.word2code[')'])
 			return self.expr_variable
 		else:
-			# print('error in __factor')
 			self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n'+
 									"Expect \"Variable\" \"Number\" or \"(\" but received: " + self.next_tok.word)
 			if not self.__advance():
@@ -373,7 +368,9 @@ class Syntactic_Analyzer:
 
 	def __advance(self):
 		'''
+
 		advance the token
+
 		'''
 		try:
 			self.cur_tok,tuple_next = self.next_tok,next(self.tokens)
@@ -383,7 +380,7 @@ class Syntactic_Analyzer:
 			self.cur_tok,tuple_next = self.next_tok,(self.sen_len,Token('None','-1'))
 			self.progress, self.next_tok = tuple_next
 			return False
-			# self.next_tok = Token('None','-1')
+
 
 
 
@@ -416,33 +413,30 @@ class Syntactic_Analyzer:
 		results_recorder = []
 		line_index = 1
 		for item in self.all_semantic_results:
-			results_recorder.append("line " + str(line_index) + " : \n")
+			# results_recorder.append("line " + str(line_index) + " : \n")
 			for address in item:
 				results_recorder.append(address)
 		df['results'] = results_recorder
 		df = df[['results']]
+		df.index = range(1,len(df) + 1)
 		df.to_excel(writer,sheet_name='results')
 		writer.save()
+
 
 if __name__ == '__main__':
 	is_semantic_parse = True
 	lexical_analyzer = Lexical_Analyzer('wordCode.xlsx','result.xlsx')
 	data_list = loadData('data_expr.txt')
-	print(data_list)
 	space_number_list = lexical_analyzer.getSpaceNumber(data_list)
-	print('space number list')
-	print(space_number_list)
 	data_list = lexical_analyzer.convertSentecesToWordCode(data_list)
-	print(data_list)
 	syntax_analyzer = Syntactic_Analyzer('SyntaxAndSemanticResults.xlsx',lexical_analyzer,is_semantic_parse)
 	syntax_analyzer.fit(data_list,space_number_list)
 	for error in syntax_analyzer.error_recorder:
 		logging.error(error)
-	# logging.info('results: ' + str(syntax_analyzer.results))
 	index = 1
-	for item in syntax_analyzer.all_semantic_results:
-		logging.info('     '+str(item))
+	# for item in syntax_analyzer.all_semantic_results:
+	# 	logging.info('     '+str(item))
 	for sentence in syntax_analyzer.all_semantic_results:
 		for item in sentence:
-			logging.info('  line ' + str(index)+ ': ' + str(item))
+			logging.info('Address  line ' + str(index)+ ': ' + str(item))
 			index += 1
