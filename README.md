@@ -6,12 +6,16 @@ Update the support for semantic translation (only supporting some simple assignm
 How to run:
 
 * Envs requirement:
+```
 1. pandas
 2. python3 (3.5+ best)
+```
 
 * File requirement:
+```
 1. wordCode.xlsx (Store the word code)
 2. data_expr.txt (Store the data which will be runned)
+```
 
 * run using exe：
 ```
