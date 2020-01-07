@@ -1,7 +1,12 @@
 # Simple-python-complier
 A simple complier that supports parts of lexical, syntax and simple semantics of python
 
-Update the support for semantic translation (only supporting some simple assignment statement now). For the convenience of the coding, temporally remove the return of results
+* Support some simple parse for python sentence
+```
+1. indent checking
+2. assignment expression
+3. semantic parsing of if and while statements
+```
 
 How to run:
 
