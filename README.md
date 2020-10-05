@@ -1,7 +1,7 @@
-# Simple-python-complier 
+# Simple-python-compiler 
 简单python编译前端
 
-A simple complier that supports parts of lexical, syntax and simple semantics of python
+A simple compiler that supports parts of lexical, syntax and simple semantics of python
 
 一个简单的编译前端支持python语句的词法分析，语法分析以及一些简单的语义分析(If和While语句）
 
