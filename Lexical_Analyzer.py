@@ -43,7 +43,7 @@ class Lexical_Analyzer:
 		word_code_list = []
 		for sentence in data_list:
 			# print(sentence)
-			sen_list = sentence.split(' ')
+			sen_list = sentence.replace('\t','    ').split(' ')
 			# print(sen_list)
 			# print(sen_list)
 			tmp_list_origin = []
@@ -94,6 +94,9 @@ class Lexical_Analyzer:
 		return code
 
 	def __stringProcessing(self,word):
+		'''
+		Parse those tokens that cannot be tokenized by space or '\t'
+		'''
 		origin_word = copy.deepcopy(word)
 		processed_word_list = []
 		start_index = 0
@@ -265,18 +268,20 @@ class Lexical_Analyzer:
 
 	def __storeResultsInExcel(self,allWordCodes):
 		df = pd.DataFrame()
-		writer = pd.ExcelWriter(self.result_path)
+		self.writer = pd.ExcelWriter(self.result_path)
 		word_list = []
 		code_list = []
 		for item_dict in allWordCodes:
 			for key,value in item_dict.items():
+				if key=='==':
+					key = '\'' + key + '\''
 				word_list.append(key)
 				code_list.append(value)
 		df['word'] = word_list
 		df['code'] = code_list
 		df = df[['word','code']]
-		df.to_excel(writer)
-		writer.save()
+		df.to_excel(self.writer,sheet_name='Word-code')
+		self.writer.save()
 
 	def	__expressionProcessing(self,processed_word_list,origin_word,start_index,i,isDuplicated,char,duplicated_char):
 		if not isDuplicated:

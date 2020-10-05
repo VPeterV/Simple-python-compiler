@@ -10,6 +10,8 @@ while a< b and b<2 #:
      b = a + 2
      if a == b:
          a = 2
+     if a==b:
+         a=1
 if a==a:
 if a>=5:
 	while True #:

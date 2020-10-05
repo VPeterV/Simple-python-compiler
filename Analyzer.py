@@ -15,6 +15,7 @@ import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 
+
 def generate_tokens(sentence):
 	for i in range(len(sentence)):
 		yield i,sentence[i]
@@ -36,6 +37,7 @@ class Syntactic_Analyzer:
 		self.error_recorder = []
 		self.all_semantic_results = []
 		self.results = []
+
 
 	def fit(self,text,space_num_list):
 		tokens = []
@@ -72,7 +74,7 @@ class Syntactic_Analyzer:
 			else:
 				self.__advance()
 			while self.progress < self.sen_len:
-				self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n' +
+				self.error_recorder.append("Syntax error in code line " + str(self.index) + ':\n' +
 										   "Unexpected token : " + self.next_tok.word)
 				self.__advance()
 			if self.variable is not None:
@@ -81,6 +83,7 @@ class Syntactic_Analyzer:
 			self.all_semantic_results.append(self.semantic_results)
 		self.__backfill_EOP()
 		self.__storeErrorInExcel()
+
 
 	def __parse(self,sentence):
 		'''
@@ -109,19 +112,20 @@ class Syntactic_Analyzer:
 			self.__advance()
 		else:
 			self.__advance()
-			self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n' +
+			self.error_recorder.append("Syntax error in code line " + str(self.index) + ':\n' +
 									   "Expect Variable or Branch statement but received: " + self.next_tok.word)
 		# hope the next token is ''='
 		self.__expect(self.word2code['='])
 
 		return self.__statement()
 
+
 	def __statement(self):
 		'''
 		'''
 		#Check those statements which have unexpected indent
 		if not self.is_control_stream and not self.is_control_last and self.cur_space>self.last_space_num:
-			self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n' +
+			self.error_recorder.append("Syntax error in code line " + str(self.index) + ':\n' +
 									   "Unexpected indent ")
 		if self.__accept(self.word2code['if']) or self.__accept(self.word2code['while']):
 			self.is_control_last = True
@@ -130,6 +134,7 @@ class Syntactic_Analyzer:
 			self.__backfill()
 			self.is_control_last = False
 			exprval,self.expr_variable = self.__expr()
+
 
 	def __control(self):
 		'''
@@ -172,6 +177,7 @@ class Syntactic_Analyzer:
 
 		# self.__backfill()
 
+
 	def __backfill(self):
 		'''
 		A module for backfilling
@@ -180,7 +186,7 @@ class Syntactic_Analyzer:
 		'''
 		while len(self.space_stack) > 0 and self.cur_space <= self.space_stack[-1]:
 			if self.is_control_last:
-				self.error_recorder.append('Syntax error in '+ 'code line ' + str(self.index) + ':\n'+'Indent expected')
+				self.error_recorder.append('Syntax error in code line ' + str(self.index) + ':\n'+'Indent expected')
 				self.is_control_last = False
 			if len(self.while_stack)>0:
 				if self.while_stack[-1]['index'] == self.all_backfill_stack[-1]:
@@ -190,6 +196,7 @@ class Syntactic_Analyzer:
 			self.all_semantic_results[self.all_backfill_stack[-1]-1][-1] += str(self.addr_index)
 			self.space_stack.pop(-1)
 			self.all_backfill_stack.pop(-1)
+
 
 	def __backfill_EOP(self):
 		'''
@@ -218,6 +225,7 @@ class Syntactic_Analyzer:
 
 		return cond_string
 
+
 	def __cond_term(self):
 		'''
 		Parsing the condition  (including '<' , '<=','==','>','>=')
@@ -233,6 +241,7 @@ class Syntactic_Analyzer:
 			cond_term = str(cond_var) + ' ' + opt + ' ' + str(right)
 
 		return cond_term
+
 
 	def __expr(self):
 		'''
@@ -291,6 +300,7 @@ class Syntactic_Analyzer:
 			self.expr_variable = semantic_string.split('=')[0].strip()
 			self.semantic_results.append(semantic_string)
 		return exprval,semantic_string.split('=')[0].strip()
+
 
 	def __term(self):
 		'''
@@ -357,7 +367,7 @@ class Syntactic_Analyzer:
 			self.__expect(self.word2code[')'])
 			return self.expr_variable
 		else:
-			self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n'+
+			self.error_recorder.append("Syntax error in code line " + str(self.index) + ':\n'+
 									"Expect \"Variable\" \"Number\" or \"(\" but received: " + self.next_tok.word)
 			if not self.__advance():
 				return False
@@ -365,6 +375,7 @@ class Syntactic_Analyzer:
 				return self.__statement()
 			else:
 				return self.__cond()
+
 
 	def __advance(self):
 		'''
@@ -382,18 +393,17 @@ class Syntactic_Analyzer:
 			return False
 
 
-
-
 	def __accept(self,acc_type):
 		if self.next_tok and self.next_tok.code == acc_type:
 			return True
 		else:
 			return False
 
+
 	def __expect(self,acc_type):
 		if not self.__accept(acc_type):
 			# print('error in __expect')
-			self.error_recorder.append("Syntax error in '+ 'code line " + str(self.index) + ':\n'+
+			self.error_recorder.append("Syntax error in code line " + str(self.index) + ':\n'+
 									   "Expected {} but received {}".format(str(self.code2word[acc_type]),self.next_tok.word))
 			self.__advance()
 		else:
@@ -402,13 +412,13 @@ class Syntactic_Analyzer:
 
 	def __storeErrorInExcel(self):
 		df = pd.DataFrame()
-		writer = pd.ExcelWriter(self.result_path)
+		writer = lexical_analyzer.writer
 		error_list = []
 		for item in self.error_recorder:
 			error_list.append(item)
 		df['error'] = error_list
 		df = df[['error']]
-		df.to_excel(writer,sheet_name='error_recorder')
+		df.to_excel(writer,sheet_name='Error-recorder')
 		df = pd.DataFrame()
 		results_recorder = []
 		line_index = 1
@@ -419,17 +429,17 @@ class Syntactic_Analyzer:
 		df['results'] = results_recorder
 		df = df[['results']]
 		df.index = range(1,len(df) + 1)
-		df.to_excel(writer,sheet_name='results')
+		df.to_excel(writer,sheet_name='semantic-results')
 		writer.save()
 
 
 if __name__ == '__main__':
 	is_semantic_parse = True
-	lexical_analyzer = Lexical_Analyzer('wordCode.xlsx','result.xlsx')
+	lexical_analyzer = Lexical_Analyzer('wordCode.xlsx','Results.xlsx')
 	data_list = loadData('data_expr.txt')
 	space_number_list = lexical_analyzer.getSpaceNumber(data_list)
 	data_list = lexical_analyzer.convertSentecesToWordCode(data_list)
-	syntax_analyzer = Syntactic_Analyzer('SyntaxAndSemanticResults.xlsx',lexical_analyzer,is_semantic_parse)
+	syntax_analyzer = Syntactic_Analyzer('Results.xlsx',lexical_analyzer,is_semantic_parse)
 	syntax_analyzer.fit(data_list,space_number_list)
 	for error in syntax_analyzer.error_recorder:
 		logging.error(error)
@@ -440,3 +450,6 @@ if __name__ == '__main__':
 		for item in sentence:
 			logging.info('Address  line ' + str(index)+ ': ' + str(item))
 			index += 1
+	logging.info("The results (Lexical,Syntax and Semantic) have been stored in Results.xlsx")
+	logging.info("Input Enter to continue")
+	to_continue = input()
